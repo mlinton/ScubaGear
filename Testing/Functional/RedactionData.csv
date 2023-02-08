@@ -1,0 +1,6 @@
+name, value
+tenant_details.AADAdditionalData.TechnicalNotificationMails, nobody@nowhere.org
+tenant_details.AADAdditionalData.BusinessPhones[*], 1234567890
+privileged_roles[*].DisplayName, "Doe, John"
+privileged_users[*].DisplayName, "Doe, Jane"
+authorization_policies.PermissionGrantPolicyIdsAssignedToDefaultUserRole[*], Some.Role
