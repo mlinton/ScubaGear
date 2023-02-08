@@ -141,27 +141,34 @@
             [boolean]$Quiet
         )
 
-        $ExportFilename = Join-Path -Path $PSScriptRoot -ChildPath 'ProviderSettingsExport.json'
+        $ExportFilename = Join-Path -Path $OutResultsPath -ChildPath 'ProviderSettingsExport.json'
 
         foreach($Product in $Products) {
             $FilePath = Join-Path -Path $RegressionTestsPath -ChildPath $Product
             $ProviderExportFiles = Get-Filenames -FilePath $FilePath -Key 'ProviderExport'
             if ($ProviderExportFiles[0]) {
                 foreach ($File in $ProviderExportFiles[1]) {
-                    #Copy-Item -Path $File -Destination $ExportFilename
+                    Copy-Item -Path $File -Destination $ExportFilename
 
                     if (Confirm-FileExists $ExportFilename) {
                         try {
-                            .\RegoCachedProviderTesting.ps1 -ProductNames $Product -ExportProvider $false -OutPath $OutResultsPath -Quiet $Quiet
+                            $RunCachedParams = @{
+                                'ExportProvider' = $false;
+                                'Login' = $false;
+                                'ProductNames' = $Product;
+                                'M365Environment' = 'gcc';
+                                'OPAPath' = $(Split-Path -Path $PSScriptRoot | Split-Path);
+                                'OutPath' = $OutResultsPath;
+                                'Quiet' = $Quiet;
+                            }
+                            Invoke-RunCached @RunCachedParams
                         }
                         catch {
-                            Set-Location $PSScriptRoot
                             Write-Error "Unknown problem running '.\RegoCachedProviderTesting.ps1', please report."
                             Write-Output $_
-                            #Remove-Item $ExportFilename
+                            Remove-Item $ExportFilename
                             exit
                         }
-                        Set-Location $PSScriptRoot
                         Compare-TestResults -Filename $File -OutResultsPath $OutResultsPath -SaveResultsPath $SaveResultsPath
                         Remove-Item $ExportFilename
                     }
@@ -203,29 +210,15 @@
             [Parameter(Mandatory)]
             [switch]$Quiet
         )
-        $Filename = ''
+        $Filename = "Functional\Auto\$(Auto)Test.txt"
 
-        switch ($Auto) {
-            'Extreme' {
-                Write-Warning "File has 1957 tests!`n" | Out-Host
-                if ((Confirm-UserSelection "Do you wish to continue [y/n]?") -eq $false) {
-                    Write-Output "Canceling....."
-                    exit
-                }
-                Write-Output "Continuing.....`nEnter Ctrl+C to cancel`n"
-
-                $Filename = "Functional\Auto\ExtremeTest.txt"
-            }
-            'Minimum' {
-                $Filename = "Functional\Auto\MinimumTest.txt"
-            }
-            'Simple' {
-                $Filename = "Functional\Auto\SimpleTest.txt"
-            }
-            Default {
-                Write-Error "Uknown auto test '$Auto'"
+        if($Auto -eq 'Extreme') {
+            Write-Warning "File has 1957 tests!`n" | Out-Host
+            if ((Confirm-UserSelection "Do you wish to continue [y/n]?") -eq $false) {
+                Write-Output "Canceling....."
                 exit
             }
+            Write-Output "Continuing.....`nEnter Ctrl+C to cancel`n"
         }
 
         if (Confirm-FileExists $Filename) {
@@ -380,6 +373,13 @@
             }
         }
     }
+
+    Set-Location $(Split-Path -Path $PSScriptRoot | Split-Path)
+    $ManifestPath = Join-Path -Path "./PowerShell" -ChildPath "ScubaGear"
+    Remove-Module "ScubaGear" -ErrorAction "SilentlyContinue" # For dev work
+    #######
+    Import-Module $ManifestPath -ErrorAction Stop
+    Set-Location $PSScriptRoot
 
     New-Folders $Out
     $Out = Get-AbsolutePath $Out
