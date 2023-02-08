@@ -26,6 +26,10 @@ jobs:
         version: latest
 
     - name: Run Regression Test
-      run: ./Testing/Functional/RunFunctionalTests.ps1 -t Rego    
+      shell: pwsh
+      run: |
+        pwd 
+        ls
+        Testing/Functional/RunFunctionalTests.ps1 -t Rego    
 
 
