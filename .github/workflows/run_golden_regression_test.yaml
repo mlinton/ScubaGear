@@ -37,4 +37,5 @@ jobs:
 
     - name: Run Regression Test
       run: |
-        .\Testing\RunFunctionalTests.ps1 -t Rego
+        $PSVersionTable
+        .\Testing\RunFunctionalTests.ps1
