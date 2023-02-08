@@ -1,3 +1,8 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Key',
+Justification = 'variable is used in another scope')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'VerboseOutput',
+Justification = 'variable is used in another scope')]
+
 [CmdletBinding()]
     param (
         [Parameter(Mandatory = $false)]
@@ -77,8 +82,7 @@
                     'RedactionDataFilePath' = $RedactionDataFilePath;
                 }
                 .\Redact-SensitiveData.ps1 @RedactionParams
-                #.\Redact-SensitiveData.ps1 -InputFilePath $(Join-Path -Path $Out -ChildPath $(Join-Path -Path $MostRecentFolder -ChildPath 'TestResults.json')) -OutputFilePath $FolderPath
-                #Remove-Item -Recurse $MostRecentFolder
+                Remove-Item -Recurse $MostRecentFolder
             }
             catch {
                 Write-Output $_
@@ -135,18 +139,20 @@
             [string]$RegressionTestsPath,
 
             [Parameter(Mandatory)]
-            [boolean]$VerboseOutput,
-
-            [Parameter(Mandatory)]
             [boolean]$Quiet
         )
 
         $ExportFilename = Join-Path -Path $OutResultsPath -ChildPath 'ProviderSettingsExport.json'
+        $VerboseString = ' '
+        $FailString = ' '
+        $TotalCount = 0
+        $PassCount = 0
 
         foreach($Product in $Products) {
             $FilePath = Join-Path -Path $RegressionTestsPath -ChildPath $Product
             $ProviderExportFiles = Get-Filenames -FilePath $FilePath -Key 'ProviderExport'
             if ($ProviderExportFiles[0]) {
+                $TotalCount += $ProviderExportFiles[1].Length
                 foreach ($File in $ProviderExportFiles[1]) {
                     Copy-Item -Path $File -Destination $ExportFilename
 
@@ -169,7 +175,20 @@
                             Remove-Item $ExportFilename
                             exit
                         }
-                        Compare-TestResults -Filename $File -OutResultsPath $OutResultsPath -SaveResultsPath $SaveResultsPath
+                        $CompareParams = @{
+                            'Filename' = $File;
+                            'OutResultsPath' = $OutResultsPath;
+                            'SaveResultsPath' = $SaveResultsPath;
+                        }
+                        $ResultString = Compare-TestResults @CompareParams
+                        if ($ResultString.Contains('CONSISTENT')) {
+                            $PassCount += 1
+                        }
+                        else {
+                            $FailString += $ResultString
+                        }
+
+                        $VerboseString += $ResultString
                         Remove-Item $ExportFilename
                     }
                 }
@@ -178,6 +197,7 @@
                 Write-Warning "$Product is missing, no files for Rego test found`nSkipping......`n" | Out-Host
             }
         }
+        return $PassCount, $TotalCount, $VerboseString, $FailString
     }
 
     function Invoke-AutomaticTest {
@@ -201,16 +221,14 @@
             [string]$Save,
 
             [Parameter(Mandatory)]
-            [ValidateNotNullOrEmpty()]
+            [AllowEmptyString()]
             [string]$RegressionTests,
 
             [Parameter(Mandatory)]
-            [switch]$VerboseOutput,
-
-            [Parameter(Mandatory)]
-            [switch]$Quiet
+            [switch]$VerboseOutput
         )
-        $Filename = "Functional\Auto\$(Auto)Test.txt"
+        #$Auto = $Auto.Substring(0,1).ToUpper()+$Auto.Substring(1).ToLower()
+        $Filename = $(Join-Path -Path $(Split-Path -Path $pwd) -ChildPath "Functional\Auto\$($Auto)Test.txt")
 
         if($Auto -eq 'Extreme') {
             Write-Warning "File has 1957 tests!`n" | Out-Host
@@ -228,12 +246,19 @@
                     'TestType' = $TestType;
                     'Out' = $Out;
                     'Save' = $Save;
-                    'RegressionTests' = $RegressionTests;
                     'VerboseOutput' = $VerboseOutput;
-                    'Quiet' = $Quiet;
+                    'Quiet' = $true;
                 }
 
-                Invoke-IntegrationTest @IntegrationTestParams
+                Write-Output "`n`t=== Automatic Testing @($($Products -join ",")) ==="
+                if ($RegressionTests -ne '') {
+                    #Invoke-IntegrationTest @IntegrationTestParams -RegressionTests $RegressionTests
+                    .\RunFunctionalTests.ps1 @IntegrationTestParams -RegressionTests $RegressionTests
+                }
+                else {
+                    #Invoke-IntegrationTest @IntegrationTestParams
+                    .\RunFunctionalTests.ps1 @IntegrationTestParams
+                }
             }
         }
 
@@ -259,6 +284,7 @@
         $TestResultFile = Get-ChildItem $OutResultsPath -Filter *.json | Where-Object { $_.Name -match 'TestResults' } | Select-Object Fullname
         $SavedFile = Get-NewFilename -FilePath $ResultRegression -SaveResultsPath $SaveResultsPath
         Copy-Item -Path $TestResultFile.Fullname -Destination $SavedFile
+        $ResultString = ""
 
         if (Confirm-FileExists $SavedFile) {
             $NewJson = Get-Content $SavedFile | ConvertFrom-Json
@@ -271,8 +297,37 @@
                     Compare-Object (($RegressionJson | ConvertTo-Json) -split '\r?\n') (($NewJson | ConvertTo-Json) -split '\r?\n')
                     Write-Output "`n==== $(Split-Path -Path $ResultRegression -Leaf -Resolve) vs $(Split-Path -Path $SavedFile -Leaf -Resolve) ====`n" | Out-Host
                 }
+                $ResultString = "`n`t$(Split-Path -Path $ResultRegression -Leaf -Resolve) : DIFFERENT"
+            }
+            else {
+                $ResultString = "`n`t$(Split-Path -Path $ResultRegression -Leaf -Resolve) : CONSISTENT"
             }
         }
+        return $ResultString
+    }
+
+    function Write-RegoOutput {
+        param (
+            [Parameter(Mandatory)]
+            [ValidateNotNullOrEmpty()]
+            [ValidateSet('aad', 'defender', 'exo', 'onedrive', 'powerplatform', 'sharepoint', 'teams', '*', IgnoreCase = $false)]
+            [string[]]$Products,
+
+            [Parameter(Mandatory)]
+            [ValidateNotNullOrEmpty()]
+            [string[]]$RegoResults,
+
+            [Parameter(Mandatory)]
+            [boolean]$VerboseOutput
+        )
+
+        if ($VerboseOutput) {
+            Write-Output "`n`t=== Testing @($($Products -join ",")) ===$($RegoResults[2])"
+        }
+        elseif ($RegoResults[3] -ne "") {
+            Write-Output "`n`t=== Testing @($($Products -join ",")) ===$($RegoResults[3])"
+        }
+        Write-Output "`n`tCONSISTENT $($RegoResults[0])/$($RegoResults[1])`n"
     }
 
     function Confirm-FileExists {
@@ -376,31 +431,31 @@
 
     Set-Location $(Split-Path -Path $PSScriptRoot | Split-Path)
     $ManifestPath = Join-Path -Path "./PowerShell" -ChildPath "ScubaGear"
-    Remove-Module "ScubaGear" -ErrorAction "SilentlyContinue" # For dev work
-    #######
+    Remove-Module "ScubaGear" -ErrorAction "SilentlyContinue"
     Import-Module $ManifestPath -ErrorAction Stop
     Set-Location $PSScriptRoot
 
     New-Folders $Out
     $Out = Get-AbsolutePath $Out
 
-    if ($Products[0] -eq '*') {
-        [string[]] $Products = ((Get-ChildItem -Path 'Unit\Rego' -Recurse -Directory -Force -ErrorAction SilentlyContinue |
-        Select-Object Name).Name).toLower()
-    }
-
     if ($Auto -ne '') {
         $IntegrationTestParams = @{
-            'Products' = $Products;
             'TestType' = $TestType;
+            'Auto' = $Auto;
             'Out' = $Out;
             'Save' = $Save;
             'RegressionTests' = $RegressionTests;
             'VerboseOutput' = $VerboseOutput;
-            'Quiet' = $Quiet;
         }
-        Invoke-AutomaticTest @IntegrationTestParams -Auto $Auto
+
+        Invoke-AutomaticTest @IntegrationTestParams
         exit
+    }
+
+    if ($Products[0] -eq '*') {
+        $UnitTestPath = $(Join-Path -Path $(Split-Path -Path $pwd) -ChildPath 'Unit\Rego')
+        $Products = $((Get-ChildItem -Path $UnitTestPath -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+        Select-Object Name).Name).toLower()
     }
 
     switch ($TestType) {
@@ -408,14 +463,26 @@
             $Out = Join-Path -Path $Out -ChildPath "Regression"
             New-Folders $Out,$Save
             #$RegressionTests = Get-GoldenFiles -Products $Products -RegressionTestsPath $RegressionTestsPath
-            #exit
             $RegressionTests = (Join-Path -Path $Home -ChildPath 'BasicRegressionTests')
             $Save = Get-AbsolutePath $Save
             $RegressionTests = Get-AbsolutePath $RegressionTests
-            Invoke-RegressionTest -Products $Products -OutResultsPath $Out -SaveResultsPath $Save -RegressionTestsPath $RegressionTests -VerboseOutput $VerboseOutput -Quiet $Quiet
+            $RegressionTest = @{
+                'Products' = $Products;
+                'OutResultsPath' = $Out;
+                'SaveResultsPath' = $Save;
+                'RegressionTestsPath' = $RegressionTests;
+                'Quiet' = $Quiet;
+            }
+            Write-RegoOutput -Products $Products -RegoResults $(Invoke-RegressionTest @RegressionTest) -VerboseOutput $VerboseOutput
         }
         'scuba' {
-            Invoke-SCuBATest -Products $Products -OutResultsPath $Out -LogIn $true -Quiet $Quiet
+            $SCuBATestParams = @{
+                'Products' = $Products;
+                'OutResultsPath' = $Out;
+                'LogIn' = $true;
+                'Quiet' = $Quiet;
+            }
+            Invoke-SCuBATest @SCuBATestParams
         }
         Default {
             Write-Error "Unknown test type: '$TestType'"
