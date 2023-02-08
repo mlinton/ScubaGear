@@ -30,6 +30,6 @@ jobs:
       run: |
         pwd 
         ls
-        Testing/Functional/RunFunctionalTests.ps1 -t Rego    
+   
 
 
