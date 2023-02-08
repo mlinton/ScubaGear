@@ -14,7 +14,9 @@ on:
 jobs:
   Run-Regression-Test:
     runs-on: windows-latest
-    shell: powershell 
+    defaults:
+      run:
+        shell: powershell 
     permissions:
       contents: write
     steps:
