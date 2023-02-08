@@ -3,6 +3,10 @@ on:
   # Run tests on each commit, newly opened/reopened PR, and
   # PR review submission (e.g. approval)
   workflow_dispatch:
+    push:
+      branches:
+      - 'GoldenMaster'
+      
     inputs:
       generate_new_gold_master:
         description: 'Generate a new golden master for regression test'
