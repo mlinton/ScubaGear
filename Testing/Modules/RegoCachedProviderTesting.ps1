@@ -21,7 +21,7 @@ param (
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
     [string]
-    $OutPath = ".\Testing\Functional\Reports", # output directory
+    $OutPath = $(Join-Path -Path $(Split-Path -Path $pwd) -ChildPath 'Functional\Reports\Regression'), # output directory
 
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]

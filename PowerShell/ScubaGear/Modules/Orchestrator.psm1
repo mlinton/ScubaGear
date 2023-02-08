@@ -114,8 +114,8 @@ function Invoke-SCuBA {
         $ProductNames = @("teams", "exo", "defender", "aad", "sharepoint", "onedrive"),
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
-        [ValidateSet("commercial", "gcc", "gcchigh", "dod", IgnoreCase = $false)]
         [ValidateNotNullOrEmpty()]
+        [ValidateSet("commercial", "gcc", "gcchigh", "dod", IgnoreCase = $false)]
         [string]
         $M365Environment = "commercial",
 
@@ -190,12 +190,18 @@ function Invoke-SCuBA {
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [switch]
-        $DarkMode
+        $DarkMode,
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
+        [ValidateSet($true, $false)]
+        [boolean]
+        $Quiet = $false
     )
     process {
         $ParentPath = Split-Path $PSScriptRoot -Parent
         $ScubaManifest = Import-PowerShellDataFile (Join-Path -Path $ParentPath -ChildPath 'ScubaGear.psd1' -Resolve)
         $ModuleVersion = $ScubaManifest.ModuleVersion
+
         if ($Version) {
             Write-Output("SCuBA Gear v$ModuleVersion")
             return
@@ -276,6 +282,7 @@ function Invoke-SCuBA {
             'OutProviderFileName' = $ScubaConfig.OutProviderFileName;
             'BoundParameters' = $PSBoundParameters;
         }
+
         $RegoParams = @{
             'ProductNames' = $ScubaConfig.ProductNames;
             'OPAPath' = $ScubaConfig.OPAPath;
@@ -284,6 +291,7 @@ function Invoke-SCuBA {
             'OutProviderFileName' = $ScubaConfig.OutProviderFileName;
             'OutRegoFileName' = $ScubaConfig.OutRegoFileName;
         }
+
         # Converted back from JSON String for PS Object use
         $TenantDetails = $TenantDetails | ConvertFrom-Json
         $ReportParams = @{
@@ -295,6 +303,7 @@ function Invoke-SCuBA {
             'OutRegoFileName' = $ScubaConfig.OutRegoFileName;
             'OutReportName' = $ScubaConfig.OutReportName;
             'DarkMode' = $DarkMode;
+            'Quiet' = $Quiet;
         }
 
         try {
@@ -755,7 +764,7 @@ function Invoke-ReportCreation {
         Add-Type -AssemblyName System.Web
         $ReportFileName = Join-Path -Path $OutFolderPath "$($OutReportName).html"
         [System.Web.HttpUtility]::HtmlDecode($ReportHTML) | Out-File $ReportFileName
-        if ($Quiet -eq $False) {
+        if (-not $Quiet) {
             Invoke-Item $ReportFileName
         }
     }
@@ -1066,6 +1075,7 @@ function Invoke-RunCached {
         $ProductNames = '*',
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
         [ValidateSet("commercial", "gcc", "gcchigh", "dod")]
         [string]
         $M365Environment = "commercial",
@@ -1132,9 +1142,47 @@ function Invoke-RunCached {
             $ScubaManifest = Import-PowerShellDataFile (Join-Path -Path $ParentPath -ChildPath 'ScubaGear.psd1' -Resolve)
             $ModuleVersion = $ScubaManifest.ModuleVersion
 
-            if ($Version) {
-                Write-Output("SCuBA Gear v$ModuleVersion")
-                return
+        if ($Version) {
+            Write-Output("SCuBA Gear v$ModuleVersion")
+            return
+        }
+
+        if ($ProductNames -eq '*') {
+            $ProductNames = "teams", "exo", "defender", "aad", "sharepoint", "onedrive", "powerplatform"
+        }
+
+        # The equivalent of ..\..
+        $ParentPath = Split-Path $(Split-Path $ParentPath -Parent) -Parent
+
+        # Create outpath if $Outpath does not exist
+        if(-not (Test-Path -PathType "container" $OutPath)) {
+            New-Item -ItemType "Directory" -Path $OutPath | Out-Null
+        }
+        $OutFolderPath = $OutPath
+        $ProductNames = $ProductNames | Sort-Object
+
+        Remove-Resources
+        Import-Resources # Imports Providers, RunRego, CreateReport, Connection
+
+        $ConnectionParams = @{
+            'LogIn' = $LogIn;
+            'ProductNames' = $ProductNames;
+            'M365Environment' = $M365Environment;
+        }
+
+        # Rego Testing failsafe
+        $TenantDetails = @{"DisplayName"="Rego Cached Testing";}
+        $TenantDetails = $TenantDetails | ConvertTo-Json -Depth 3
+        if ($ExportProvider) {
+            $ProdAuthFailed = Invoke-Connection @ConnectionParams
+            if ($ProdAuthFailed.Count -gt 0) {
+                $Difference = Compare-Object $ProductNames -DifferenceObject $ProdAuthFailed -PassThru
+                if (-not $Difference) {
+                    throw "All products were unable to establish a connection aborting execution"
+                }
+                else {
+                    $ProductNames = $Difference
+                }
             }
 
             if ($ProductNames -eq '*'){
@@ -1211,10 +1259,35 @@ function Invoke-RunCached {
                 'Quiet' = $Quiet;
                 'DarkMode' = $DarkMode;
             }
-            Invoke-RunRego @RegoParams
-            Invoke-ReportCreation @ReportParams
+            Invoke-ProviderList @ProviderParams
         }
+
+        $FileName = Join-Path -Path $OutPath -ChildPath "$($OutProviderFileName).json"
+        $SettingsExport = Get-Content $FileName | ConvertFrom-Json
+        $TenantDetails = $SettingsExport.tenant_details
+        $RegoParams = @{
+            'ProductNames' = $ProductNames;
+            'OPAPath' = $OPAPath;
+            'ParentPath' = $ParentPath;
+            'OutFolderPath' = $OutFolderPath;
+            'OutProviderFileName' = $OutProviderFileName;
+            'OutRegoFileName' = $OutRegoFileName;
+        }
+
+        $ReportParams = @{
+            'ProductNames' = $ProductNames;
+            'TenantDetails' = $TenantDetails;
+            'ModuleVersion' = $ModuleVersion;
+            'OutFolderPath' = $OutFolderPath;
+            'OutProviderFileName' = $OutProviderFileName;
+            'OutRegoFileName' = $OutRegoFileName;
+            'OutReportName' = $OutReportName;
+            'Quiet' = $Quiet;
+        }
+        Invoke-RunRego @RegoParams
+        Invoke-ReportCreation @ReportParams
     }
+}
 
 Export-ModuleMember -Function @(
     'Invoke-SCuBA',
