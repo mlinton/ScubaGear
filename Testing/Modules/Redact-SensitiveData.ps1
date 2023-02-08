@@ -102,7 +102,7 @@ function Invoke-RedactSensitiveData{
         Write-Error "Provider settings export not found at path: $InputPath"
     }
 
-    # Redact Test Results 
+    # Redact Test Results
     $InputFilePath = Join-Path -Path $InputPath -ChildPath 'TestResults.json'
 
     if (Test-Path -Path $InputFilePath -PathType Leaf){
