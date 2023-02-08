@@ -3,15 +3,15 @@ on:
   # Run tests on each commit, newly opened/reopened PR, and
   # PR review submission (e.g. approval)
   workflow_dispatch:
-  inputs:
-    generate_new_gold_master:
-      description: 'Generate a new golden master for regression test'
-      required: false
-      default: false
-      type: choice
-      options:
-      - false
-      - true
+    inputs:
+      generate_new_gold_master:
+        description: 'Generate a new golden master for regression test'
+        required: false
+        default: false
+        type: choice
+        options:
+        - false
+        - true
 
 jobs:
   Run-Regression-Test:
