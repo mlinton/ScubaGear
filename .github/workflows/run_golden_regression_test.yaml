@@ -30,7 +30,8 @@ jobs:
       run: |
         $PSVersionTable
         pwd 
-        Testing\Functional\RunFunctionalTests.ps1 -t Rego
+        .\SetUp.ps1
+        .\Testing\Functional\RunFunctionalTests.ps1 -t Rego
    
 
 
