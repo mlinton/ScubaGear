@@ -28,8 +28,9 @@ jobs:
     - name: Run Regression Test
       shell: pwsh
       run: |
+        $PSVersionTable
         pwd 
-        ls
+        Testing\Functional\RunFunctionalTests.ps1 -t Rego
    
 
 
