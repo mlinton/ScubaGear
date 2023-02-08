@@ -1,19 +1,19 @@
 function Invoke-RedactSensitiveData{
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateScript({Test-Path -PathType Leaf $_})]
+        [ValidateScript({Test-Path -PathType Container $_})]
         [string]
-        $InputFilePath,
+        $InputPath,
 
         [Parameter(Mandatory = $true)]
         [ValidateScript({Test-Path -PathType Container $_})]
         [string]
-        $OutputFilePath,
+        $OutputPath,
 
         [Parameter(Mandatory = $true)]
-        [ValidateScript({Test-Path -PathType Leaf $_})]
+        [ValidateScript({Test-Path -PathType Container $_})]
         [string]
-        $RedactionDataFilePath
+        $RedactionDataPath
     )
 
     function Set-Property {
@@ -34,18 +34,25 @@ function Invoke-RedactSensitiveData{
         $Value
     )
         $First, $Rest = $Path
+
         if ($Rest) {
-            if ($First.EndsWith('[*]')){
+            if ($First.StartsWith('[*]')){
+                # Json starts with an anonomous array
+                for ($Index = 0; $Index -lt $Json.length; $Index++){
+                    Set-Property -Json $Json[$Index] -Path $rest -Value $Value
+                }
+            }
+            elseif ($First.EndsWith('[*]')){
                 $First = $First.Substring(0, $First.Length - 3)
                 if ($Json.$First -is [array]){
                     foreach ($Item in $Json.$First){
                         Set-Property -Json $Item -Path $rest -Value $Value
                     }
                 }else{
-                    foreach ($Object in $Json.$First){
-                        $ObjectName = $($Object | Get-Member -MemberType *Property).Name
-                        Set-Property -Json $($Json.$First).$ObjectName -Path $rest -Value $Value
-                    }
+                    $Keys = (Get-Member -InputObject $Json.$First -MemberType NoteProperty).Name
+                    ForEach ($Key in $Keys){
+                        Set-Property -Json $($Json.$First).$Key -Path $rest -Value $Value
+                   }
                 }
             }
             else{
@@ -66,15 +73,58 @@ function Invoke-RedactSensitiveData{
         }
     }
 
-    $InputData = Get-Content -Path $InputFilePath -Raw | ConvertFrom-Json
-    $RedactionData = Get-Content -Path $RedactionDataFilePath -Raw | ConvertFrom-Csv
+    $TenantName = "Not Found"
 
-    foreach ($Property in $RedactionData){
-        $PropertyPath =  $Property.name.Split('.')
-        Set-Property -Json $InputData -Path $PropertyPath -Value $Property.Value
+    # Redact Provider Settings Export
+    $InputFilePath = Join-Path -Path $InputPath -ChildPath 'ProviderSettingsExport.json'
+
+    if (Test-Path -Path $InputFilePath -PathType Leaf){
+        $InputData = Get-Content -Path $InputFilePath -Raw | ConvertFrom-Json
+        $TenantName = $InputData.tenant_details.DisplayName
+        $RedactionDataFilePath = Join-Path -Path $RedactionDataPath -ChildPath 'ProviderRedactionData.csv'
+
+        if (Test-Path -Path $RedactionDataFilePath -PathType Leaf){
+            $RedactionData = Get-Content -Path $RedactionDataFilePath -Raw | ConvertFrom-Csv
+
+            foreach ($Property in $RedactionData){
+                $PropertyPath =  $Property.name.Split('.')
+                Set-Property -Json $InputData -Path $PropertyPath -Value $Property.Value
+            }
+
+            $OutputFileName = Join-Path -Path $OutputPath -ChildPath "ProviderExport-$TenantName.json"
+                $InputData | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputFileName
+        }
+        else{
+            Write-Error "Provider settings redaction file not found at path: $RedactionDataPath"
+        }
+    }
+    else {
+        Write-Error "Provider settings export not found at path: $InputPath"
     }
 
-    $TenantName = $InputData.tenant_details.DisplayName
-    $OutputFileName = Join-Path -Path $OutputFilePath -ChildPath "ProviderExport-$TenantName.json"
-    $InputData | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputFileName
+    # Redact Test Results 
+    $InputFilePath = Join-Path -Path $InputPath -ChildPath 'TestResults.json'
+
+    if (Test-Path -Path $InputFilePath -PathType Leaf){
+        $InputData = Get-Content -Path $InputFilePath -Raw | ConvertFrom-Json
+        $RedactionDataFilePath = Join-Path -Path $RedactionDataPath -ChildPath 'ResultsRedactionData.csv'
+
+        if (Test-Path -Path $RedactionDataFilePath -PathType Leaf){
+            $RedactionData = Get-Content -Path $RedactionDataFilePath -Raw | ConvertFrom-Csv
+
+            foreach ($Property in $RedactionData){
+                $PropertyPath =  $Property.name.Split('.')
+                Set-Property -Json $InputData -Path $PropertyPath -Value $Property.Value
+            }
+
+            $OutputFileName = Join-Path -Path $OutputPath -ChildPath "TestResults-$TenantName.json"
+                $InputData | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputFileName
+        }
+        else{
+            Write-Error "Test results redaction file not found at path: $RedactionDataPath"
+        }
+    }
+    else {
+        Write-Error "Test results not found at path: $InputPath"
+    }
 }
