@@ -1,5 +1,4 @@
 name: Run Golden Master Regression Test 
-
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +11,8 @@ on:
 jobs:
   Run-Regression-Test:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
     - name: Check out repository code
       uses: actions/checkout@v3
