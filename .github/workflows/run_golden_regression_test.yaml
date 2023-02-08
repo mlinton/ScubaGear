@@ -31,11 +31,8 @@ jobs:
     - name: Setup for test
       run: |
         $PSVersionTable
-        pwd 
         ./SetUp.ps1
-        Import-Module -Name .\PowerShell\ScubaGear
+        Import-Module -Name ./PowerShell/ScubaGear
 
     - name: Run Regression Test
-      run: |
-        $PSVersionTable
-        ./Testing/RunFunctionalTests.ps1
+      run: ./Testing/RunFunctionalTests.ps1
