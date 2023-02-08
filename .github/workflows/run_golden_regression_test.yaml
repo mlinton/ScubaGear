@@ -1,0 +1,28 @@
+name: Run Golden Master Regression Test 
+on:
+  # Run tests on each commit, newly opened/reopened PR, and
+  # PR review submission (e.g. approval)
+  workflow_dispatch:
+  inputs:
+    generate_new_gold_master:
+      description: 'Generate a new golden master for regression test'
+      required: false
+      default: false
+      type: choice
+      options:
+      - false
+      - true
+
+jobs:
+  Run-Regression-Test:
+    runs-on: windows-latest
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+
+    - name: Setup OPA
+      uses: open-policy-agent/setup-opa@v2
+      with:
+        version: latest
+
+
