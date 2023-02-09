@@ -1,8 +1,5 @@
-name: Run Golden Master Regression Test 
+name: Run Generate Golden Master for Regression Test 
 on:
-  push:
-    branches:
-    - "GoldenMaster"
   workflow_dispatch:
     inputs:
       generate_new_gold_master:
@@ -35,4 +32,4 @@ jobs:
         Import-Module -Name ./PowerShell/ScubaGear
 
     - name: Run Regression Test
-      run: ./Testing/Modules/RunFunctionalTests.ps1 
+      run: ./Testing/Modules/RunFunctionalTests.ps1 -t Rego -p aad
