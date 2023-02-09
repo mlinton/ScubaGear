@@ -49,14 +49,18 @@ function Invoke-RedactSensitiveData{
                         Set-Property -Json $Item -Path $rest -Value $Value
                     }
                 }else{
-                    $Keys = (Get-Member -InputObject $Json.$First -MemberType NoteProperty).Name
-                    ForEach ($Key in $Keys){
-                        Set-Property -Json $($Json.$First).$Key -Path $rest -Value $Value
-                   }
+                    if ([bool]($Json.PSobject.Properties.name -match $First)){
+                        $Keys = (Get-Member -InputObject $Json.$First -MemberType NoteProperty).Name
+                        ForEach ($Key in $Keys){
+                            Set-Property -Json $($Json.$First).$Key -Path $rest -Value $Value
+                        }
+                    }
                 }
             }
             else{
-                Set-Property -Json $Json.$First -Path $Rest -Value $Value
+                if ([bool]($Json.PSobject.Properties.name -match $First)){
+                    Set-Property -Json $Json.$First -Path $Rest -Value $Value
+                }
             }
         } else {
             if ($First.EndsWith('[*]')){
