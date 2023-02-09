@@ -35,4 +35,4 @@ jobs:
         Import-Module -Name ./PowerShell/ScubaGear
 
     - name: Run Regression Test
-      run: ./Testing/RunFunctionalTests.ps1
+      run: ./Testing/Modules/RunFunctionalTests.ps1
