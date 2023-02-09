@@ -60,7 +60,7 @@ Justification = 'variable is used in another scope')]
         )
 
         if ($RegressionTestsPath -ne '') {
-            $GoldenFolderPath = Join-Path -Path $RegressionTestsPath -ChildPath 'GoldenRegressionTests'
+            $GoldenFolderPath = Join-Path -Path $(Get-AbsolutePath $RegressionTests) -ChildPath 'GoldenRegressionTests'
         }
         else {
             $GoldenFolderPath = $(Join-Path -Path $(Split-Path -Path $pwd) -ChildPath 'GoldenRegressionTests')
@@ -74,17 +74,25 @@ Justification = 'variable is used in another scope')]
             try {
                 Invoke-SCuBA -ProductNames $Products -OutPath $Out -LogIn $LogIn -Quiet $Quiet
                 $MostRecentFolder = (Get-ChildItem $Out -Directory | Sort-Object CreationTime)[-1]
-                $RedactionDataFilePath = $(Join-Path -Path $(Split-Path -Path $pwd) -ChildPath 'Functional\RedactionData.csv')
-
-                $RedactionParams = @{
-                    'InputFilePath' = $(Join-Path -Path $Out -ChildPath $(Join-Path -Path $MostRecentFolder -ChildPath 'ProviderSettingsExport.json')); #$(Join-Path -Path $Out -ChildPath $MostRecentFolder);
-                    'OutputFilePath' = $FolderPath;
-                    'RedactionDataFilePath' = $RedactionDataFilePath;
+                $RedactionDataFilePath = $(Join-Path -Path $(Split-Path -Path $pwd) -ChildPath 'Functional')
+                . .\Redact-SensitiveData.ps1
+                try {
+                    $RedactionParams = @{
+                        'InputPath' = $(Join-Path -Path $Out -ChildPath $MostRecentFolder);
+                        'OutputPath' = $FolderPath;
+                        'RedactionDataPath' = $RedactionDataFilePath;
+                    }
+                    Invoke-RedactSensitiveData @RedactionParams
                 }
-                .\Redact-SensitiveData.ps1 @RedactionParams
+                catch {
+                    Write-Error "Unknown problem running 'Invoke-RedactSensitiveData', please report."
+                    Write-Output $_
+                    exit
+                }
                 Remove-Item -Recurse $MostRecentFolder
             }
             catch {
+                Write-Error "Unknown problem running 'Invoke-SCuBA', please report."
                 Write-Output $_
             }
             $LogIn = $false
@@ -170,7 +178,7 @@ Justification = 'variable is used in another scope')]
                             Invoke-RunCached @RunCachedParams
                         }
                         catch {
-                            Write-Error "Unknown problem running '.\RegoCachedProviderTesting.ps1', please report."
+                            Write-Error "Unknown problem running 'Invoke-RunCached', please report."
                             Write-Output $_
                             Remove-Item $ExportFilename
                             exit
@@ -462,10 +470,10 @@ Justification = 'variable is used in another scope')]
         'regression' {
             $Out = Join-Path -Path $Out -ChildPath "Regression"
             New-Folders $Out,$Save
-            #$RegressionTests = Get-GoldenFiles -Products $Products -RegressionTestsPath $RegressionTestsPath
-            $RegressionTests = (Join-Path -Path $Home -ChildPath 'BasicRegressionTests')
+            $RegressionTests = Get-GoldenFiles -Products $Products -RegressionTestsPath $RegressionTestsPath
+            #$RegressionTests = (Join-Path -Path $Home -ChildPath 'BasicRegressionTests')
             $Save = Get-AbsolutePath $Save
-            $RegressionTests = Get-AbsolutePath $RegressionTests
+            #$RegressionTests = Get-AbsolutePath $RegressionTests
             $RegressionTest = @{
                 'Products' = $Products;
                 'OutResultsPath' = $Out;
