@@ -138,6 +138,8 @@ The following API permissions are required for Microsoft Graph Powershell:
 - User.Read.All
 - UserAuthenticationMethod.Read.All
 
+This can be completed by clicking the "Grant admin consent for ORGANIZATION" button within the Microsoft Graph Powershell Permissions page within the Azure Active Directory, Enterprise Permissions page. 
+
 
 ## Architecture
 ![SCuBA Architecture diagram](/images/scuba-architecture.png)
